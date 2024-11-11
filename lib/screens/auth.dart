@@ -1,4 +1,9 @@
+import 'dart:io';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fgdc_14_chatapp/widgets/user_image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 
 final _firebase = FirebaseAuth.instance;
@@ -15,25 +20,45 @@ class _AuthScreenState extends State<AuthScreen> {
   var _enteredEmail = '';
   var _enteredPassword = '';
   var _isLoggedIn = true;
+  var _isAuthenticating = false;
+  File? _selectedImage;
 
   void _submit() async {
     final isValid = _formKey.currentState!.validate();
 
-    if (!isValid) {
+    if (!isValid || !_isLoggedIn && _selectedImage == null) {
       return;
     }
+
     _formKey.currentState!.save();
+
     try {
+      setState(() {
+        _isAuthenticating = true;
+      });
       if (_isLoggedIn) {
         final authCred = await _firebase.signInWithEmailAndPassword(
             email: _enteredEmail,
             password: _enteredPassword);
-        print('Auth creds->$authCred<-');
       } else {
         final userCreds = await _firebase.createUserWithEmailAndPassword(
             email: _enteredEmail,
             password: _enteredPassword);
+
+        // TODO- figure out why upload not working
+        // final storageRef = FirebaseStorage.instance.ref()
+        //     .child('user_images')
+        //     .child('${userCreds.user!.uid}.jpg');
+        //
+        // await storageRef.putFile(_selectedImage!);
+        // final imageUrl = await storageRef.getDownloadURL();
+
+        await FirebaseFirestore.instance.collection('users').doc(userCreds.user!.uid).set({
+          'username': 'tbd',
+          'email': _enteredEmail,
+        });
         print('User creds->$userCreds<-');
+        // print('User image->$imageUrl<-');
       }
     } on FirebaseAuthException catch (error) {
       ScaffoldMessenger.of(context).clearSnackBars();
@@ -67,6 +92,9 @@ class _AuthScreenState extends State<AuthScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            if (!_isLoggedIn) UserImagePicker(onPickedImage: (pickImage) {
+                              _selectedImage = pickImage;
+                            },),
                             TextFormField(
                               decoration: const InputDecoration(
                                 labelText: 'Email Address',
